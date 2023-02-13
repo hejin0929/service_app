@@ -3,8 +3,14 @@ package main
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"io/ioutil"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"net/http"
+	"os"
+	"service_app/db"
+	"service_app/docs"
+	account "service_app/paths/account"
+	"service_app/paths/upload"
 	"strings"
 )
 
@@ -12,20 +18,64 @@ func init() {
 
 }
 
+//	@title			Swagger Example API
+//	@version		1.0
+//	@description	This is a sample server celler server.
+//	@termsOfService	http://swagger.io/terms/
+
+//	@contact.name	API Support
+//	@contact.url	http://www.swagger.io/support
+//	@contact.email	support@swagger.io
+
+//	@license.name	Apache 2.0
+//	@license.url	http://www.apache.org/licenses/LICENSE-2.0.html
+
+//	@host		localhost:8080
+//	@BasePath	/api/v1
+
+// @securityDefinitions.basic	BasicAuth
 func main() {
-	fmt.Println("this is a update windows")
-	route := gin.Default()
 
-	route.Use(Cors())
+	HttpApp := gin.Default()
 
-	route.POST("/upload", func(c *gin.Context) {
-		data, _ := ioutil.ReadAll(c.Request.Body)
+	docs.SwaggerInfo.BasePath = "api"
 
-		fmt.Println("this is a file", data)
-		c.JSON(200, "你成功了")
+	db.ConnectDB()
+
+	HttpApp.Use(Cors())
+
+	route := HttpApp.Group("/api")
+
+	route.GET("/doc", func(c *gin.Context) {
+		file, _ := os.ReadFile("./api.json")
+		_, _ = c.Writer.Write(file)
 	})
 
-	route.Run(":8080").Error()
+	route.GET("/assets/*any", func(c *gin.Context) {
+
+		lists := strings.Split(c.Request.URL.Path, "/")
+
+		file, err := os.ReadFile("./assets/" + lists[len(lists)-1])
+
+		if err != nil {
+			c.JSON(http.StatusNotFound, err)
+		}
+		_, _ = c.Writer.Write(file)
+	})
+
+	login := HttpApp.Group("/account")
+
+	// 注册接口
+	login.POST("/:phone", account.RegisterPaths)
+
+	route.POST("/upload", upload.Upload)
+
+	HttpApp.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler,
+		ginSwagger.URL("http://localhost:8080/swagger/doc.json"),
+		ginSwagger.DefaultModelsExpandDepth(-1)),
+	)
+
+	HttpApp.Run(":8080").Error()
 }
 
 // Cors //// 跨域
@@ -46,7 +96,7 @@ func Cors() gin.HandlerFunc {
 		if origin != "" {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 			c.Header("Access-Control-Allow-Origin", "*")                                       // 这是允许访问所有域
-			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE,UPDATE") //服务器支持的所有跨域请求的方法,为了避免浏览次请求的多次'预检'请求
+			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE,UPDATE") // 服务器支持的所有跨域请求的方法,为了避免浏览次请求的多次'预检'请求
 			//  header的类型
 			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Length, X-CSRF-Token, Token,session,X_Requested_With,Accept, Origin, Host, Connection, Accept-Encoding, Accept-Language,DNT, X-CustomHeader, Keep-Alive, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Pragma")
 			//              允许跨域设置                                                                                                      可以返回其他子段
